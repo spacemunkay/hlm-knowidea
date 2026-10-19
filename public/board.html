@@ -33,6 +33,10 @@
     <section data-panel="teams" class="active">
       <h2>Team proposals <span class="count" id="cTeams">0</span></h2>
       <div class="grid" id="teams"></div>
+      <details class="solo-list" id="soloBox" hidden>
+        <summary>Solo hackers <span class="count" id="cSolo">0</span></summary>
+        <ul id="solo"></ul>
+      </details>
     </section>
 
     <section data-panel="waiting">
@@ -82,7 +86,6 @@ function render() {
   $('#sPeople').textContent = s.counts.participants;
   $('#sTeams').textContent = s.counts.teams;
   $('#sWaiting').textContent = s.waiting.length;
-  $('#cTeams').textContent = s.teams.length;
   $('#cWaiting').textContent = s.waiting.length;
   $('#cIdeas').textContent = s.ideaFeed.length;
   $('#notCheckedIn').hidden = !!me;
@@ -90,10 +93,21 @@ function render() {
   renderMe();
 
   const myTeam = me?.teamId;
-  const teams = [...s.teams].sort((a, b) => (b.id === myTeam) - (a.id === myTeam));
+  // Real teams get full cards; solo hackers go in a compact, collapsed list below.
+  const teams = s.teams.filter((t) => !t.isSolo).sort((a, b) => (b.id === myTeam) - (a.id === myTeam));
+  const solos = s.teams.filter((t) => t.isSolo);
+  $('#cTeams').textContent = teams.length;
   $('#teams').innerHTML = teams.length
     ? teams.map((t) => teamCard(t, t.id === myTeam)).join('')
     : `<div class="empty">No teams yet. Teams are proposed once ${s.formation.batchSize} people are waiting, or after a short wait.</div>`;
+  const soloBox = $('#soloBox');
+  soloBox.hidden = !solos.length;
+  $('#cSolo').textContent = solos.length;
+  if (solos.some((t) => t.id === myTeam)) soloBox.open = true;
+  $('#solo').innerHTML = solos.map((t) => `
+    <li id="${t.id}" class="${t.id === myTeam ? 'mine' : ''}">
+      <b>${esc(t.members[0]?.name)}</b> <span class="muted">${esc(t.project?.title || '')}${t.project?.prizeCategory ? ` · ${esc(t.project.prizeCategory)}` : ''}</span>
+    </li>`).join('');
 
   const f = s.formation;
   const pct = Math.min(100, (f.waiting / f.batchSize) * 100);

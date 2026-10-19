@@ -164,3 +164,9 @@ pre.log { font-size: 0.8rem; white-space: pre-wrap; max-height: 320px; overflow:
 table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .scroll-x { overflow-x: auto; }
+
+/* Solo hackers: compact, collapsed list under the team grid */
+.solo-list { margin-top: 16px; }
+.solo-list ul { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.88rem; }
+.solo-list li { padding: 6px 2px; border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.solo-list li.mine { color: var(--accent); }
