@@ -61,9 +61,26 @@ optional idea, how attached they are to it (*committed* / *flexible* / *anything
 categories of interest, solo or matched, group word, how long they can stay, and free-text
 notes. Contact details and tokens are never sent to Gemini or shown on the public board.
 
-## Deploying for the event
+## Sharing it online (free, for dev/hobby use)
 
-The app is a single Node process with no database, so any small VM or container
-works (Fly.io, Render, Railway, a laptop + `cloudflared tunnel`). Set `PUBLIC_URL` to the
-public HTTPS address before printing the QR code. State lives in `data/state.json`. Use
-**Reset** in `/admin` after a dry run.
+Run it on your laptop and expose it through a free Cloudflare quick tunnel. You don't
+need an account, and the data stays in `data/state.json` on your disk.
+
+```bash
+brew install cloudflared
+cp .env.example .env     # set ADMIN_TOKEN to something secret (required), add GEMINI_API_KEY
+npm run share
+```
+
+`npm run share` starts the server and the tunnel, prints the public
+`https://….trycloudflare.com` links, and keeps your Mac awake with `caffeinate` while it
+runs. It refuses to start while `ADMIN_TOKEN` is the default. Open **`/qr` through the
+public URL**: the QR code always encodes the URL the page was opened from.
+
+Limitations:
+- The URL changes on every run, so reprint or reshare the QR code each time.
+- It's only up while your laptop is on, awake and online.
+- Quick tunnels allow roughly 200 in-flight requests, and every open board holds one live
+  connection. That's fine for testing, but tight for a big event.
+- For a real event, use a [named Cloudflare tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+  on your own domain (stable URL; set `PUBLIC_URL`) or a small always-on VM.

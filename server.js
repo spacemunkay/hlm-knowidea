@@ -6,10 +6,15 @@ import * as matcher from './src/matcher.js';
 import { fetchPageText } from './src/scrape.js';
 
 const PORT = Number(process.env.PORT || 3000);
-const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+// Fixed public URL if you have one; otherwise use whatever host the request came in on
+// (e.g. a Cloudflare tunnel URL that changes every run).
+const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
+const LOCAL_URL = `http://localhost:${PORT}`;
+const publicUrl = (req) => PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'change-me';
 
 const app = express();
+app.set('trust proxy', true); // honour X-Forwarded-Proto from tunnels/proxies
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static('public', { extensions: ['html'] }));
 
@@ -27,7 +32,7 @@ function broadcast() {
 matcher.setOnChange(broadcast);
 
 app.get('/api/events', (req, res) => {
-  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
   res.flushHeaders();
   res.write('retry: 3000\n\n');
   clients.add(res);
@@ -238,10 +243,11 @@ app.post('/api/me/respond', (req, res) => {
 // QR code for the check-in form
 // ---------------------------------------------------------------------------
 app.get('/qr.svg', async (req, res) => {
-  const target = req.query.to === 'board' ? `${PUBLIC_URL}/board` : `${PUBLIC_URL}/join`;
+  const base = publicUrl(req);
+  const target = req.query.to === 'board' ? `${base}/board` : `${base}/join`;
   res.type('image/svg+xml').send(await QRCode.toString(target, { type: 'svg', margin: 1, width: 600 }));
 });
-app.get('/api/public-url', (req, res) => res.json({ url: PUBLIC_URL }));
+app.get('/api/public-url', (req, res) => res.json({ url: publicUrl(req) }));
 
 // ---------------------------------------------------------------------------
 // Admin
@@ -369,11 +375,12 @@ setInterval(() => matcher.maybeForm().catch((e) => store.log(`Formation error: $
 setInterval(broadcast, 60000); // keep countdowns fresh
 
 app.listen(PORT, () => {
-  console.log(`Hackathon teamer on ${PUBLIC_URL}`);
-  console.log(`  Check-in:  ${PUBLIC_URL}/join`);
-  console.log(`  Board:     ${PUBLIC_URL}/board`);
-  console.log(`  QR poster: ${PUBLIC_URL}/qr`);
-  console.log(`  Admin:     ${PUBLIC_URL}/admin   (ADMIN_TOKEN${ADMIN_TOKEN === 'change-me' ? ' is the default — change it!' : ' set'})`);
+  const base = PUBLIC_URL || LOCAL_URL;
+  console.log(`Hackathon teamer on ${base}`);
+  console.log(`  Check-in:  ${base}/join`);
+  console.log(`  Board:     ${base}/board`);
+  console.log(`  QR poster: ${base}/qr`);
+  console.log(`  Admin:     ${base}/admin   (ADMIN_TOKEN${ADMIN_TOKEN === 'change-me' ? ' is the default — change it!' : ' set'})`);
   console.log(`  AI:        ${gemini.geminiEnabled() ? `Gemini (${gemini.geminiModel()})` : 'disabled — set GEMINI_API_KEY (fallback matching in use)'}`);
 
   // First boot with HACKATHON_URL set: scrape it once so the form shows prize categories.

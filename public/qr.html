@@ -20,12 +20,14 @@
     <p style="font-size:1.25rem">Scan to check in. Get project ideas and teammates, live.</p>
     <img id="qr" src="/qr.svg" alt="QR code linking to the check-in form" />
     <p class="url" id="url"></p>
+    <p class="noprint banner" id="localWarn" hidden>This page was opened via localhost, so phones can't reach this QR code. Open it through your public URL (e.g. the tunnel link from <code>npm run share</code>).</p>
     <p class="noprint muted small">Print this page (⌘P) or show it on a screen. <a href="/qr?board">Board QR instead</a></p>
   </div>
 <script>
   const board = location.search.includes('board');
   if (board) document.getElementById('qr').src = '/qr.svg?to=board';
   fetch('/api/public-url').then((r) => r.json()).then(({ url }) => {
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url)) document.getElementById('localWarn').hidden = false;
     document.getElementById('url').textContent = url.replace(/^https?:\/\//, '') + (board ? '/board' : '/join');
   });
   fetch('/api/config').then((r) => r.json()).then((c) => { if (c.name) document.getElementById('name').textContent = c.name; });
