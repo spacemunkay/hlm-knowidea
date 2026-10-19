@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Check in · Find a team</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="wrap narrow">
+    <h1 id="title">Check in</h1>
+    <p class="muted" id="theme">Tell us a bit about you and we'll suggest project ideas and teammates. Takes about 2 minutes.</p>
+    <div id="already" class="banner" hidden>
+      You've already checked in on this phone. <a href="/board">Go to your team page →</a>
+    </div>
+
+    <form id="f" class="card" style="margin-top:16px" novalidate>
+      <div class="field">
+        <label for="name">Your name</label>
+        <input id="name" name="name" type="text" autocomplete="name" required />
+      </div>
+      <div class="field">
+        <label for="contact">How can teammates reach you? <span class="hint">Discord, email or phone. Only shared with your team.</span></label>
+        <input id="contact" name="contact" type="text" required />
+      </div>
+
+      <div class="field">
+        <label>What do you do right now?</label>
+        <div class="choices" data-name="role" data-type="radio">
+          <label><input type="radio" name="role" value="Student" />Student</label>
+          <label><input type="radio" name="role" value="Software engineer" />Software engineer</label>
+          <label><input type="radio" name="role" value="Designer" />Designer</label>
+          <label><input type="radio" name="role" value="Data / ML" />Data / ML</label>
+          <label><input type="radio" name="role" value="Product / Business" />Product / Business</label>
+          <label><input type="radio" name="role" value="Between jobs" />Between jobs</label>
+          <label><input type="radio" name="role" value="Other" />Other</label>
+        </div>
+        <input name="roleDetail" type="text" placeholder="e.g. CS junior at UW, backend dev at a fintech" style="margin-top:8px" />
+      </div>
+
+      <div class="field">
+        <label>Hackathon experience</label>
+        <div class="choices">
+          <label><input type="radio" name="experience" value="first" />First one!</label>
+          <label><input type="radio" name="experience" value="some" checked />1–3 before</label>
+          <label><input type="radio" name="experience" value="veteran" />4+ (veteran)</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>What can you bring? <span class="hint">Pick any. Put your strongest first.</span></label>
+        <div class="choices" id="skills">
+          <label><input type="checkbox" name="skills" value="Frontend / web" />Frontend / web</label>
+          <label><input type="checkbox" name="skills" value="Backend / APIs" />Backend / APIs</label>
+          <label><input type="checkbox" name="skills" value="Mobile" />Mobile</label>
+          <label><input type="checkbox" name="skills" value="AI / ML" />AI / ML</label>
+          <label><input type="checkbox" name="skills" value="Data" />Data</label>
+          <label><input type="checkbox" name="skills" value="Design / UX" />Design / UX</label>
+          <label><input type="checkbox" name="skills" value="Hardware / IoT" />Hardware / IoT</label>
+          <label><input type="checkbox" name="skills" value="Cloud / DevOps" />Cloud / DevOps</label>
+          <label><input type="checkbox" name="skills" value="Game dev" />Game dev</label>
+          <label><input type="checkbox" name="skills" value="Pitching / storytelling" />Pitching / storytelling</label>
+          <label><input type="checkbox" name="skills" value="Domain expertise" />Domain expertise</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Your top 2 hobbies <span class="hint">Great projects often come from these.</span></label>
+        <div class="two">
+          <input name="hobby1" type="text" placeholder="e.g. climbing" />
+          <input name="hobby2" type="text" placeholder="e.g. cooking" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label>What do you want out of today?</label>
+        <div class="choices">
+          <label><input type="checkbox" name="goals" value="Win a prize" />Win a prize</label>
+          <label><input type="checkbox" name="goals" value="Learn something new" />Learn something new</label>
+          <label><input type="checkbox" name="goals" value="Meet people" />Meet people</label>
+          <label><input type="checkbox" name="goals" value="Build my portfolio" />Build my portfolio</label>
+          <label><input type="checkbox" name="goals" value="Just have fun" />Just have fun</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="idea">Got a project idea? <span class="hint">Optional. Even a half-formed one helps.</span></label>
+        <textarea id="idea" name="idea" placeholder="e.g. An app that turns fridge photos into a week of recipes"></textarea>
+      </div>
+
+      <div class="field">
+        <label>How attached are you to your idea?</label>
+        <div class="choices stacked">
+          <label><input type="radio" name="openness" value="committed" />I want to build my idea. Find people to join me.</label>
+          <label><input type="radio" name="openness" value="flexible" />I have an idea, but I'm happy to work on someone else's.</label>
+          <label><input type="radio" name="openness" value="any" checked />No strong idea. I'll join anything good.</label>
+        </div>
+      </div>
+
+      <div class="field" id="prizesField" hidden>
+        <label>Prize categories you're interested in</label>
+        <div class="choices" id="prizes"></div>
+      </div>
+
+      <div class="field">
+        <label>Team</label>
+        <div class="choices stacked">
+          <label><input type="radio" name="teamPreference" value="match" checked />Match me with a team (1–4 people)</label>
+          <label><input type="radio" name="teamPreference" value="solo" />I'd rather hack solo</label>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="group">Came with friends? <span class="hint">Everyone in your group enters the same word. We'll keep you together and fill any open spots.</span></label>
+        <input id="group" name="group" type="text" placeholder="e.g. pineapple" autocapitalize="none" />
+      </div>
+
+      <div class="field">
+        <label for="availableUntil">I can stay until</label>
+        <select id="availableUntil" name="availableUntil"></select>
+      </div>
+
+      <div class="field">
+        <label for="notes">Anything else? <span class="hint">Optional. Languages, accessibility needs, tools you want to try…</span></label>
+        <textarea id="notes" name="notes" style="min-height:64px"></textarea>
+      </div>
+
+      <p id="err" class="banner" hidden></p>
+      <button class="full" id="submit" type="submit">Check in & see ideas →</button>
+    </form>
+  </main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let tokenStored = null;
+try { tokenStored = localStorage.getItem('teamerToken'); } catch {}
+if (tokenStored) $('#already').hidden = false;
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Keep the order the boxes were ticked so "strongest skill first" works.
+const skillOrder = [];
+$('#skills').addEventListener('change', (e) => {
+  const v = e.target.value;
+  const i = skillOrder.indexOf(v);
+  if (e.target.checked && i < 0) skillOrder.push(v);
+  if (!e.target.checked && i >= 0) skillOrder.splice(i, 1);
+});
+
+fetch('/api/config').then((r) => r.json()).then((cfg) => {
+  if (cfg.name) { $('#title').textContent = `Check in · ${cfg.name}`; document.title = `Check in · ${cfg.name}`; }
+  if (cfg.theme) $('#theme').textContent = `Theme: ${cfg.theme}. Tell us about you and we'll suggest ideas and teammates.`;
+  if (cfg.prizeCategories?.length) {
+    $('#prizesField').hidden = false;
+    $('#prizes').innerHTML = cfg.prizeCategories
+      .map((c) => `<label title="${esc(c.description)}"><input type="checkbox" name="prizeInterests" value="${esc(c.name)}" />${esc(c.name)}</label>`)
+      .join('');
+  }
+  const end = cfg.endTime || '17:00';
+  const [eh] = end.split(':').map(Number);
+  const opts = [`<option value="${end}">The end (${end})</option>`];
+  for (let h = eh - 1; h >= 11; h--) opts.push(`<option value="${String(h).padStart(2, '0')}:00">${h > 12 ? h - 12 : h}:00 ${h >= 12 ? 'pm' : 'am'}</option>`);
+  $('#availableUntil').innerHTML = opts.join('');
+});
+
+$('#f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = {
+    name: fd.get('name'),
+    contact: fd.get('contact'),
+    role: fd.get('role') || '',
+    roleDetail: fd.get('roleDetail'),
+    experience: fd.get('experience'),
+    skills: skillOrder.length ? skillOrder : fd.getAll('skills'),
+    hobbies: [fd.get('hobby1'), fd.get('hobby2')].filter(Boolean),
+    goals: fd.getAll('goals'),
+    idea: fd.get('idea'),
+    openness: fd.get('openness'),
+    prizeInterests: fd.getAll('prizeInterests'),
+    teamPreference: fd.get('teamPreference'),
+    group: fd.get('group'),
+    availableUntil: fd.get('availableUntil'),
+    notes: fd.get('notes'),
+  };
+  const err = $('#err');
+  err.hidden = true;
+  if (!body.name?.trim() || !body.contact?.trim()) {
+    err.textContent = 'Please add your name and a way for teammates to reach you.';
+    err.hidden = false;
+    return;
+  }
+  $('#submit').disabled = true;
+  try {
+    const r = await fetch('/api/join', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Something went wrong');
+    try { localStorage.setItem('teamerToken', data.token); } catch {}
+    // Token in the URL too, so the link still works if storage is blocked.
+    location.href = `/board?me=${encodeURIComponent(data.token)}`;
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+    $('#submit').disabled = false;
+  }
+});
+</script>
+</body>
+</html>

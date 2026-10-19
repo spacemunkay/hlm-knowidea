@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scan to Check In</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    body { background: #fff; color: #111; }
+    .poster { max-width: 720px; margin: 0 auto; padding: 32px 16px; text-align: center; }
+    .poster h1 { font-size: clamp(2rem, 6vw, 3.4rem); }
+    .poster img { width: min(80vw, 520px); height: auto; margin: 24px auto; display: block; }
+    .poster .url { font: 600 1.2rem ui-monospace, monospace; word-break: break-all; }
+    @media print { .noprint { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="poster">
+    <h1 id="name">Find your hackathon team</h1>
+    <p style="font-size:1.25rem">Scan to check in. Get project ideas and teammates, live.</p>
+    <img id="qr" src="/qr.svg" alt="QR code linking to the check-in form" />
+    <p class="url" id="url"></p>
+    <p class="noprint muted small">Print this page (⌘P) or show it on a screen. <a href="/qr?board">Board QR instead</a></p>
+  </div>
+<script>
+  const board = location.search.includes('board');
+  if (board) document.getElementById('qr').src = '/qr.svg?to=board';
+  fetch('/api/public-url').then((r) => r.json()).then(({ url }) => {
+    document.getElementById('url').textContent = url.replace(/^https?:\/\//, '') + (board ? '/board' : '/join');
+  });
+  fetch('/api/config').then((r) => r.json()).then((c) => { if (c.name) document.getElementById('name').textContent = c.name; });
+</script>
+</body>
+</html>

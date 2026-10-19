@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Organizer Console</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <div class="row spread">
+      <h1>Organizer console</h1>
+      <div class="row"><a class="btn secondary" href="/board" target="_blank">Board ↗</a><a class="btn secondary" href="/qr" target="_blank">QR poster ↗</a></div>
+    </div>
+    <p class="muted" id="aiStatus"></p>
+    <p id="msg"></p>
+
+    <div id="login" class="card narrow" hidden>
+      <label for="tok">Admin token</label>
+      <div class="row"><input id="tok" type="password" style="flex:1" /><button onclick="saveToken()">Unlock</button></div>
+    </div>
+
+    <div id="app" hidden>
+      <h2>1 · Hackathon details</h2>
+      <div class="card stack">
+        <div class="field">
+          <label for="url">Hackathon page URL <span class="hint">We'll fetch it and have Gemini pull out the theme and prize categories.</span></label>
+          <div class="row"><input id="url" type="url" style="flex:1" placeholder="https://….devpost.com" /><button id="scrapeBtn" onclick="scrape()">Scrape</button></div>
+          <details style="margin-top:8px"><summary>Page needs a login or JavaScript? Paste its text instead</summary>
+            <textarea id="pasted" placeholder="Paste the page text here, then click Scrape"></textarea></details>
+        </div>
+        <div class="two">
+          <div class="field"><label for="evName">Event name</label><input id="evName" type="text" /></div>
+          <div class="field"><label>Hours</label><div class="two"><input id="evStart" type="time" /><input id="evEnd" type="time" /></div></div>
+        </div>
+        <div class="field"><label for="evTheme">Theme</label><input id="evTheme" type="text" /></div>
+        <div class="field"><label for="evSummary">Summary / judging notes</label><textarea id="evSummary"></textarea></div>
+        <div class="field">
+          <label for="evPrizes">Prize categories <span class="hint">One per line: <code>Name: description</code></span></label>
+          <textarea id="evPrizes" style="min-height:140px"></textarea>
+        </div>
+        <button onclick="saveEvent()">Save details</button>
+      </div>
+
+      <h2>2 · Matching</h2>
+      <div class="card stack">
+        <div class="row">
+          <label class="row" style="margin:0"><input type="checkbox" id="auto" /> Auto-form teams</label>
+        </div>
+        <div class="two">
+          <div class="field"><label for="batch">Form teams when this many people are waiting</label><input id="batch" type="number" min="2" max="40" /></div>
+          <div class="field"><label for="wait">…or after anyone waits this many minutes</label><input id="wait" type="number" min="1" max="120" /></div>
+        </div>
+        <div class="row">
+          <button onclick="saveSettings()">Save settings</button>
+          <button class="secondary" id="formBtn" onclick="formNow()">Form teams now</button>
+        </div>
+        <p class="small muted" id="formationTxt"></p>
+      </div>
+
+      <h2>3 · Teams <span class="count" id="cTeams"></span></h2>
+      <div class="grid" id="teams"></div>
+
+      <h2>Participants <span class="count" id="cPeople"></span></h2>
+      <div class="card scroll-x"><table id="people"></table></div>
+
+      <h2>Activity log</h2>
+      <div class="card"><pre class="log" id="log"></pre></div>
+
+      <h2>Danger zone</h2>
+      <div class="card row">
+        <button class="danger" id="resetBtn" onclick="reset()">Reset all participants & teams</button>
+        <span class="small muted">Keeps event details. Use after a dry run.</span>
+      </div>
+    </div>
+  </main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let token = '';
+try { token = localStorage.getItem('teamerAdmin') || ''; } catch {}
+let loadedForm = false;
+
+function saveToken() {
+  token = $('#tok').value;
+  try { localStorage.setItem('teamerAdmin', token); } catch {}
+  load();
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch('/api/admin' + path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401) { $('#login').hidden = false; $('#app').hidden = true; throw new Error('auth'); }
+  if (!r.ok) { alertBox(data.error || 'Request failed'); throw new Error(data.error); }
+  return data;
+}
+function alertBox(msg) { $('#msg').innerHTML = `<span class="banner">${esc(msg)}</span>`; }
+
+async function load() {
+  const s = await api('/state');
+  $('#login').hidden = true;
+  $('#app').hidden = false;
+  $('#aiStatus').textContent = s.ai.enabled ? `AI: Gemini (${s.ai.model})` : 'AI disabled: set GEMINI_API_KEY. Using rule-based fallback matching.';
+  if (!loadedForm) fillForm(s);
+  const f = s.formation;
+  $('#formationTxt').textContent = `${f.waiting} waiting${f.running ? ' · matching now…' : ''}${f.nextByTimeAt ? ` · time trigger at ${new Date(f.nextByTimeAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`;
+
+  $('#cTeams').textContent = s.teams.length;
+  $('#teams').innerHTML = s.teams.map((t) => `
+    <div class="card stack">
+      <div class="row spread"><b>${esc(t.name)}</b><span class="chip ${t.status === 'confirmed' ? 'ok' : 'warn'}">${t.status}</span></div>
+      <div class="small"><b>${esc(t.project?.title)}</b> · ${esc(t.project?.prizeCategory || 'no category')} <span class="muted">(${t.source})</span></div>
+      <div class="small">${t.members.map((m) => `${esc(m.name)} <span class="muted">${m.response || ''}</span>`).join(', ')}</div>
+      <div class="row">
+        <button class="small secondary" onclick="teamAction('${t.id}','confirm')">Confirm all</button>
+        ${t.isSolo ? '' : `<button class="small secondary" onclick="teamAction('${t.id}','toggle-open')">${t.openSlots > 0 ? 'Close to latecomers' : 'Reopen'}</button>`}
+        <button class="small danger" onclick="teamAction('${t.id}','dissolve')">Dissolve</button>
+      </div>
+    </div>`).join('') || '<div class="empty">No teams yet.</div>';
+
+  $('#cPeople').textContent = s.participants.length;
+  $('#people').innerHTML = '<tr><th>Name</th><th>Contact</th><th>Status</th><th>Role</th><th>Skills</th><th>Idea</th><th></th></tr>' +
+    s.participants.sort((a, b) => b.arrivedAt.localeCompare(a.arrivedAt)).map((p) => `
+      <tr><td>${esc(p.name)}${p.group ? ` <span class="chip outline">${esc(p.group)}</span>` : ''}</td><td>${esc(p.contact)}</td><td>${p.status}</td>
+      <td>${esc(p.role)}</td><td>${esc((p.skills || []).join(', '))}</td><td>${esc((p.idea || '').slice(0, 80))}</td>
+      <td>${p.status !== 'left' ? `<button class="small danger" onclick="removeP('${p.id}')">Remove</button>` : ''}</td></tr>`).join('');
+
+  $('#log').textContent = s.log.map((l) => `${new Date(l.at).toLocaleTimeString()}  ${l.msg}`).join('\n');
+}
+
+function fillForm(s) {
+  loadedForm = true;
+  const e = s.event;
+  $('#url').value = e.url || '';
+  $('#evName').value = e.name || '';
+  $('#evStart').value = e.startTime || '09:00';
+  $('#evEnd').value = e.endTime || '17:00';
+  $('#evTheme').value = e.theme || '';
+  $('#evSummary').value = e.summary || '';
+  $('#evPrizes').value = (e.prizeCategories || []).map((c) => `${c.name}: ${c.description}`).join('\n');
+  $('#auto').checked = s.settings.autoFormation;
+  $('#batch').value = s.settings.batchSize;
+  $('#wait').value = s.settings.maxWaitMinutes;
+}
+
+async function scrape() {
+  const b = $('#scrapeBtn');
+  b.disabled = true; b.textContent = 'Scraping…';
+  try {
+    await api('/scrape', { method: 'POST', body: { url: $('#url').value, text: $('#pasted').value } });
+    loadedForm = false;
+    await load();
+    alertBox('Scraped. Review the details below, then save.');
+  } finally { b.disabled = false; b.textContent = 'Scrape'; }
+}
+
+async function saveEvent() {
+  const prizeCategories = $('#evPrizes').value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+    const i = l.indexOf(':');
+    return i > 0 ? { name: l.slice(0, i).trim(), description: l.slice(i + 1).trim() } : { name: l, description: '' };
+  });
+  await api('/event', { method: 'PUT', body: {
+    name: $('#evName').value, theme: $('#evTheme').value, summary: $('#evSummary').value,
+    startTime: $('#evStart').value, endTime: $('#evEnd').value, prizeCategories,
+  } });
+  alertBox('Event details saved.');
+}
+
+async function saveSettings() {
+  await api('/settings', { method: 'PUT', body: { autoFormation: $('#auto').checked, batchSize: +$('#batch').value, maxWaitMinutes: +$('#wait').value } });
+  alertBox('Settings saved.');
+}
+
+async function formNow() {
+  const b = $('#formBtn');
+  b.disabled = true; b.textContent = 'Matching…';
+  try { await api('/form-now', { method: 'POST' }); } finally { b.disabled = false; b.textContent = 'Form teams now'; }
+}
+const teamAction = (id, action) => api(`/team/${id}/${action}`, { method: 'POST' });
+const removeP = (id) => api(`/participant/${id}/remove`, { method: 'POST' });
+
+function reset() {
+  const b = $('#resetBtn');
+  if (!b.dataset.armed) { b.dataset.armed = 1; b.textContent = 'Click again to reset everything'; setTimeout(() => { delete b.dataset.armed; b.textContent = 'Reset all participants & teams'; }, 4000); return; }
+  api('/reset', { method: 'POST' });
+}
+
+const es = new EventSource('/api/events');
+es.addEventListener('update', () => token && load().catch(() => {}));
+if (token) load().catch(() => {}); else $('#login').hidden = false;
+</script>
+</body>
+</html>

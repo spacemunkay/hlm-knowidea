@@ -1,0 +1,19 @@
+{
+  "name": "hackathon-teamer",
+  "version": "1.0.0",
+  "description": "Streaming, AI-assisted team formation and project ideas for day-long hackathons (Gemini-powered).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --watch --env-file-if-exists=.env server.js",
+    "simulate": "node scripts/simulate.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20.6" },
+  "dependencies": {
+    "@google/genai": "^2.30.0",
+    "express": "^5.3.0",
+    "qrcode": "^1.5.4"
+  }
+}

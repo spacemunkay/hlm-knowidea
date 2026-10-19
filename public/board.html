@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Teams & Ideas</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <div class="hero">
+      <div>
+        <h1 id="eventName">Teams & Ideas</h1>
+        <p class="muted" id="theme"></p>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="sPeople">0</b><span>checked in</span></div>
+        <div class="stat"><b id="sTeams">0</b><span>teams</span></div>
+        <div class="stat"><b id="sWaiting">0</b><span>waiting</span></div>
+        <div class="stat" title="Live updates"><span class="live-dot" id="live"></span><span id="liveTxt"> live</span></div>
+      </div>
+    </div>
+
+    <section id="me" hidden></section>
+    <p id="notCheckedIn" class="muted small" hidden>Not checked in yet? <a href="/join">Check in here</a> to get matched.</p>
+
+    <nav class="tabs" id="tabs">
+      <button data-tab="teams" class="active">Teams</button>
+      <button data-tab="waiting">Waiting</button>
+      <button data-tab="ideas">Ideas</button>
+    </nav>
+
+    <section data-panel="teams" class="active">
+      <h2>Team proposals <span class="count" id="cTeams">0</span></h2>
+      <div class="grid" id="teams"></div>
+    </section>
+
+    <section data-panel="waiting">
+      <h2>Looking for a team <span class="count" id="cWaiting">0</span></h2>
+      <div class="card" id="formation"></div>
+      <div class="pool" id="pool" style="margin-top:12px"></div>
+    </section>
+
+    <section data-panel="ideas">
+      <h2>Idea feed <span class="count" id="cIdeas">0</span></h2>
+      <p class="muted small">Generated from each person's profile as they check in. Like one? Find its author.</p>
+      <div class="grid" id="ideas"></div>
+    </section>
+  </main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const expLabel = { first: 'first hackathon', some: '', veteran: 'veteran' };
+
+// Who am I? Token comes from the check-in redirect (?me=) or localStorage.
+let token = new URLSearchParams(location.search).get('me');
+try {
+  if (token) { localStorage.setItem('teamerToken', token); history.replaceState(null, '', '/board'); }
+  else token = localStorage.getItem('teamerToken');
+} catch {}
+
+let me = null;
+let state = null;
+
+async function refresh() {
+  const [s, m] = await Promise.all([
+    fetch('/api/state').then((r) => r.json()),
+    token ? fetch('/api/me', { headers: { 'x-participant-token': token } }).then((r) => (r.ok ? r.json() : null)) : null,
+  ]);
+  state = s;
+  me = m;
+  if (token && !m) { try { localStorage.removeItem('teamerToken'); } catch {} token = null; }
+  render();
+}
+
+function render() {
+  const s = state;
+  $('#eventName').textContent = s.event.name || 'Teams & Ideas';
+  document.title = `${s.event.name || 'Hackathon'} · Teams & Ideas`;
+  $('#theme').textContent = [s.event.theme && `Theme: ${s.event.theme}`, `Hacking ends ${s.event.endTime}`].filter(Boolean).join(' · ');
+  $('#sPeople').textContent = s.counts.participants;
+  $('#sTeams').textContent = s.counts.teams;
+  $('#sWaiting').textContent = s.waiting.length;
+  $('#cTeams').textContent = s.teams.length;
+  $('#cWaiting').textContent = s.waiting.length;
+  $('#cIdeas').textContent = s.ideaFeed.length;
+  $('#notCheckedIn').hidden = !!me;
+
+  renderMe();
+
+  const myTeam = me?.teamId;
+  const teams = [...s.teams].sort((a, b) => (b.id === myTeam) - (a.id === myTeam));
+  $('#teams').innerHTML = teams.length
+    ? teams.map((t) => teamCard(t, t.id === myTeam)).join('')
+    : `<div class="empty">No teams yet. Teams are proposed once ${s.formation.batchSize} people are waiting, or after a short wait.</div>`;
+
+  const f = s.formation;
+  const pct = Math.min(100, (f.waiting / f.batchSize) * 100);
+  let when = '';
+  if (f.running) when = '<b>Matching teams now…</b>';
+  else if (!s.settings.autoFormation) when = 'Organizers will form the next teams shortly.';
+  else if (f.waiting === 0) when = 'Nobody waiting right now.';
+  else {
+    const mins = Math.max(0, Math.ceil((Date.parse(f.nextByTimeAt) - Date.now()) / 60000));
+    when = `Next teams form at <b>${f.batchSize} people waiting</b> (${f.waiting} now) or in <b>~${mins} min</b>, whichever comes first.`;
+  }
+  $('#formation').innerHTML = `<p class="small" style="margin:0">${when}</p><div class="meter"><i style="width:${pct}%"></i></div>`;
+
+  $('#pool').innerHTML = s.waiting.length
+    ? s.waiting.map((p) => `<div class="card person"><b>${esc(p.name)}</b> <span class="muted small">${esc(p.role || '')}</span><br/><span class="small muted">${esc((p.skills || []).slice(0, 3).join(' · '))}</span></div>`).join('')
+    : '<div class="empty" style="flex:1">Everyone checked in has a team proposal.</div>';
+
+  $('#ideas').innerHTML = s.ideaFeed.length
+    ? s.ideaFeed.map((i) => `
+      <div class="card idea stack">
+        <h3>${esc(i.title)}</h3>
+        <p class="small">${esc(i.pitch)}</p>
+        <div class="row">
+          ${i.prizeCategory ? `<span class="chip">${esc(i.prizeCategory)}</span>` : ''}
+          ${(i.neededSkills || []).slice(0, 3).map((k) => `<span class="chip outline">${esc(k)}</span>`).join('')}
+        </div>
+        <p class="small muted" style="margin:0">Inspired by ${esc(i.author || 'a participant')}</p>
+      </div>`).join('')
+    : `<div class="empty">${s.ai.enabled ? 'Ideas appear here as people check in.' : 'AI ideas are off (no Gemini key configured).'}</div>`;
+}
+
+function teamCard(t, mine) {
+  const p = t.project || {};
+  const statusChip = t.isSolo ? '<span class="chip outline">solo</span>'
+    : t.status === 'confirmed' ? '<span class="chip ok">confirmed</span>' : '<span class="chip warn">proposed</span>';
+  return `
+  <article class="card team ${mine ? 'mine' : ''}" id="${t.id}">
+    <div class="row spread"><h3>${esc(t.name)}${mine ? ' · <span style="color:var(--accent)">your team</span>' : ''}</h3>${statusChip}</div>
+    <div>
+      <div class="project">${esc(p.title)}</div>
+      <p class="small">${esc(p.pitch)}</p>
+      <div class="row">
+        ${p.prizeCategory ? `<span class="chip">🏆 ${esc(p.prizeCategory)}</span>` : ''}
+        ${(p.techStack || []).slice(0, 4).map((x) => `<span class="chip outline">${esc(x)}</span>`).join('')}
+      </div>
+    </div>
+    <ul class="members">
+      ${t.members.map((m) => `
+        <li><span class="who"><b>${esc(m.name)}</b> <small>${esc([m.role, (m.skills || [])[0], expLabel[m.experience]].filter(Boolean).join(' · '))}</small></span>
+        ${t.isSolo ? '' : m.response === 'accepted' ? '<span class="chip ok">in</span>' : '<span class="chip outline">pending</span>'}</li>`).join('')}
+      ${t.openSlots > 0 ? `<li class="muted small">${t.openSlots} open spot${t.openSlots > 1 ? 's' : ''}. Latecomers may be added.</li>` : ''}
+    </ul>
+    ${t.rationale ? `<p class="small muted" style="margin:0">Why this team: ${esc(t.rationale)}</p>` : ''}
+    ${p.firstSteps?.length ? `<details><summary>First steps</summary><ol>${p.firstSteps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol></details>` : ''}
+  </article>`;
+}
+
+function renderMe() {
+  const box = $('#me');
+  if (!me) { box.hidden = true; return; }
+  box.hidden = false;
+  const team = state.teams.find((t) => t.id === me.teamId);
+  let body = '';
+  if (me.status === 'waiting') {
+    const pos = state.waiting.findIndex((p) => p.id === me.id) + 1;
+    body = `<p><b>You're in the pool</b> (#${pos} of ${state.waiting.length}). We'll propose a team soon. Keep this page open; it updates live.</p>`;
+  } else if (team) {
+    const pending = me.myResponse === 'pending';
+    body = `
+      <p>${pending ? '<b>You have a team proposal!</b>' : '<b>You\'re on a team.</b>'} <a href="#${team.id}">${esc(team.name)}</a>: ${esc(team.project?.title)}</p>
+      ${me.teammates.length ? `<p class="small">Teammates: ${me.teammates.map((t) => `<b>${esc(t.name)}</b> <span class="muted">(${esc(t.contact)})</span>`).join(', ')}</p>` : ''}
+      ${pending ? `<div class="row">
+        <button onclick="respond('accept')">I'm in 👍</button>
+        <button class="secondary" onclick="respond('decline')">Not a fit, find me another team</button>
+      </div>` : ''}`;
+  } else if (me.status === 'left') {
+    body = '<p>You\'ve left the event. <a href="/join">Check in again</a>?</p>';
+  }
+  const sparks = me.sparks?.length
+    ? `<details ${me.status === 'waiting' ? 'open' : ''}><summary>Your idea sparks (${me.sparks.length})</summary><ol>${me.sparks.map((i) => `<li><b>${esc(i.title)}</b>: ${esc(i.pitch)}</li>`).join('')}</ol></details>`
+    : '';
+  box.innerHTML = `<div class="card me-card stack"><div class="row spread"><h3>Hi ${esc(me.name.split(' ')[0])} 👋</h3>
+    ${me.status !== 'left' ? '<button class="small danger" onclick="leave()">I\'m leaving</button>' : ''}</div>${body}${sparks}</div>`;
+}
+
+async function respond(action) {
+  await fetch('/api/me/respond', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-participant-token': token }, body: JSON.stringify({ action }) });
+  refresh();
+}
+function leave() {
+  // Two-tap confirm without a blocking dialog.
+  const b = event.target;
+  if (b.dataset.armed) return respond('leave');
+  b.dataset.armed = '1';
+  b.textContent = 'Tap again to confirm';
+  setTimeout(() => { delete b.dataset.armed; b.textContent = "I'm leaving"; }, 4000);
+}
+
+// Mobile tabs
+$('#tabs').addEventListener('click', (e) => {
+  const tab = e.target.dataset.tab;
+  if (!tab) return;
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('[data-panel]').forEach((p) => p.classList.toggle('active', p.dataset.panel === tab));
+});
+
+// Live updates
+function connect() {
+  const es = new EventSource('/api/events');
+  es.addEventListener('update', refresh);
+  es.onopen = () => { $('#live').classList.remove('off'); $('#liveTxt').textContent = ' live'; refresh(); };
+  es.onerror = () => { $('#live').classList.add('off'); $('#liveTxt').textContent = ' reconnecting'; };
+}
+refresh();
+connect();
+setInterval(() => state && render(), 30000); // tick countdown
+</script>
+</body>
+</html>
